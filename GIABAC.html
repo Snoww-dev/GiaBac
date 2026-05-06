@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kim Ngân Phú Quý - Silver Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            background-color: #1A2745;
+            color: #ffffff;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 1050px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        /* Thêm badge trạng thái kết nối API */
+        .api-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: #4A5568;
+            color: #E2E8F0;
+        }
+        .api-status.success { background-color: #38A169; color: #fff; }
+        .api-status.error { background-color: #E53E3E; color: #fff; }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .header h2 {
+            color: #D4AF37;
+            margin: 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .inputs {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            color: #A0AEC0;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #D4AF37;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            outline: none;
+            width: 140px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .input-group input:focus {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        thead tr {
+            border-bottom: 2px solid #2A3B5C;
+        }
+
+        th {
+            padding: 12px;
+            color: #D4AF37;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #2A3B5C;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        td {
+            padding: 16px 12px;
+            font-size: 14px;
+        }
+
+        .product-name { font-weight: 600; }
+        .unit { color: #A0AEC0; }
+        .formula-col { color: #F6AD55; font-style: italic; font-size: 13px; }
+        .buy-price { color: #63B3ED; }
+        .sell-price { font-weight: bold; color: #fff; }
+
+        @media (max-width: 600px) {
+            .header { flex-direction: column; align-items: flex-start; margin-top: 30px;}
+            td, th { padding: 8px; font-size: 12px; }
+            .input-group input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <div id="apiStatus" class="api-status">Đang lấy giá tự động...</div>
+    <div class="header">
+        <h2>Kim Ngân Phú Quý - Live Dashboard</h2>
+        <div class="inputs">
+            <div class="input-group">
+                <label>GIÁ MUA CƠ SỞ (VNĐ/LƯỢNG)</label>
+                <input type="text" id="baseBuy" value="2.803.000" oninput="formatInput(this)" onblur="formatOnBlur(this)">
+            </div>
+            <div class="input-group">
+                <label>GIÁ BÁN CƠ SỞ (VNĐ/LƯỢNG)</label>
+                <input type="text" id="baseSell" value="2.890.000" oninput="formatInput(this)" onblur="formatOnBlur(this)">
+            </div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Sản phẩm</th>
+                <th>Đơn vị</th>
+                <th>Công thức quy đổi</th>
+                <th>Phí Premium</th>
+                <th>Giá Mua Vào</th>
+                <th>Giá Bán Ra</th>
+            </tr>
+        </thead>
+        <tbody id="product-table-body">
+            </tbody>
+    </table>
+</div>
+
+<script>
+    const products = [
+        // NHÓM 1: Bạc 1 KG
+        { name: 'Bạc thỏi Phú Quý 999 1KG', unit: '1 KG', premium: 0, multiplier: 26.6666 },
+        { name: 'Bạc Thanh Long Phú Quý 999 1KG', unit: '1 KG', premium: 0, multiplier: 26.6666 },
+        { name: 'Bạc Thanh Long Phú Quý 999 1KG - M', unit: '1 KG', premium: 0, multiplier: 26.6666 },
+        
+        // NHÓM 2: Bạc 5 Lượng
+        { name: 'Bạc thỏi Phú Quý 999 5L', unit: '5 Lượng', premium: 0, multiplier: 5 },
+        { name: 'Bạc Thanh Long Phú Quý 999 5L', unit: '5 Lượng', premium: 0, multiplier: 5 },
+        { name: 'Bạch Mã Phi Thiên 999 5L', unit: '5 Lượng', premium: 0, multiplier: 5 },
+        { name: 'Bạc Kỷ Niệm 80 Năm Quốc Khánh 999 5L', unit: '5 Lượng', premium: 0, multiplier: 5 },
+        { name: 'Bạc Kỷ Niệm 50 Năm TNDN 999 5L', unit: '5 Lượng', premium: 0, multiplier: 5 },
+
+        // NHÓM 3: Bạc 1 Lượng
+        { name: 'Bạc Miếng Phú Quý 999 1L', unit: '1 Lượng', premium: 0, multiplier: 1 },
+        { name: 'Ngân Mã Chiêu Tài 999 1L', unit: '1 Lượng', premium: 0, multiplier: 1 },
+        { name: 'Bạc Thanh Long Phú Quý 999 1L', unit: '1 Lượng', premium: 0, multiplier: 1 },
+        { name: 'Bạc Miếng Phú Quý 999 RAN1L', unit: '1 Lượng', premium: 0, multiplier: 1 },
+
+        // NHÓM 4: Bạc Mỹ Nghệ (Sản xuất trong nước)
+        { name: 'Đồng Bạc Bát Bảo Cát Tường 5 Chỉ', unit: '5 Chỉ', premium: 204000, multiplier: 0.5 },
+        { name: 'Đồng Bạc Liên Hoa Bồ Đề 1 Lượng', unit: '1 Lượng', premium: 408000, multiplier: 1 },
+
+        // NHÓM 5: Đồng Bạc / Miếng Bạc Ngoại Nhập
+        { name: 'Miếng Bạc PAMP Dragon 10G 2024', unit: '10g', premium: 1219770, multiplier: 0.2666 },
+        { name: 'Đồng Bạc Panda 30G 2024', unit: '30g', premium: 540000, multiplier: 0.8 },
+        { name: 'Đồng Bạc Buffalo Matte 1 Oz (Bản mờ)', unit: '1 Oz', premium: 338640, multiplier: 0.83 },
+        { name: 'Đồng Bạc Buffalo Proof 1 Oz (Bản bóng)', unit: '1 Oz', premium: 338640, multiplier: 0.83 },
+        { name: 'Đồng Bạc Britannia Charles III 1 Oz 2024', unit: '1 Oz', premium: 390100, multiplier: 0.83 },
+        { name: 'Đồng Bạc Kangaroo 1 Oz 2024', unit: '1 Oz', premium: 390100, multiplier: 0.83 },
+        { name: 'Đồng Bạc Maple Leaf 1 Oz 2024', unit: '1 Oz', premium: 390100, multiplier: 0.83 },
+        { name: 'Đồng Bạc American Eagle 1 Oz 2024', unit: '1 Oz', premium: 539500, multiplier: 0.83 },
+        { name: 'Đồng Bạc Dragon III 1 Oz 2024', unit: '1 Oz', premium: 709650, multiplier: 0.83 },
+        { name: 'Đồng Bạc Dragon Colour III 2024 1 Oz', unit: '1 Oz', premium: 709650, multiplier: 0.83 }
+    ];
+
+    function parseNumber(str) {
+        let val = parseInt(str.replace(/\./g, ''), 10);
+        return isNaN(val) ? 0 : val;
+    }
+
+    function formatCurrency(value) {
+        return Math.round(value).toLocaleString('vi-VN') + ' đ';
+    }
+
+    function formatInput(el) {
+        let rawValue = el.value.replace(/\D/g, ''); 
+        if (!rawValue) {
+            el.value = '';
+            updateDashboard();
+            return;
+        }
+        el.value = parseInt(rawValue, 10).toLocaleString('vi-VN');
+        updateDashboard();
+    }
+
+    function formatOnBlur(el) {
+        let val = parseNumber(el.value);
+        if (val > 0 && val < 100000) { val = val * 1000; }
+        if (val > 0) {
+            el.value = val.toLocaleString('vi-VN');
+            updateDashboard();
+        }
+    }
+
+    function updateDashboard() {
+        let rawBuy = parseNumber(document.getElementById('baseBuy').value);
+        if (rawBuy > 0 && rawBuy < 100000) rawBuy *= 1000;
+        
+        let rawSell = parseNumber(document.getElementById('baseSell').value);
+        if (rawSell > 0 && rawSell < 100000) rawSell *= 1000;
+
+        const tbody = document.getElementById('product-table-body');
+        tbody.innerHTML = ''; 
+
+        products.forEach(item => {
+            const buyPrice = rawBuy * item.multiplier;
+            const sellPrice = (rawSell * item.multiplier) + item.premium;
+
+            const row = `
+                <tr>
+                    <td class="product-name">${item.name}</td>
+                    <td class="unit">${item.unit}</td>
+                    <td class="formula-col">× ${item.multiplier}</td>
+                    <td>${item.premium === 0 ? '0 đ' : formatCurrency(item.premium)}</td>
+                    <td class="buy-price">${formatCurrency(buyPrice)}</td>
+                    <td class="sell-price">${formatCurrency(sellPrice)}</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    // --- HÀM TỰ ĐỘNG GỌI API ---
+    async function fetchLivePrice() {
+        const statusEl = document.getElementById('apiStatus');
+        try {
+            const response = await fetch('https://be.phuquy.com.vn/jewelry/product-payment-service/api/sync-price-history/get-sync-history-today?productType=BAC');
+            
+            if (!response.ok) throw new Error('API không phản hồi thành công');
+            
+            const apiData = await response.json();
+            console.log("Dữ liệu API trả về:", apiData); // BẤM F12 XEM DÒNG NÀY ĐỂ ĐIỀU CHỈNH KEY BÊN DƯỚI
+
+            /* ==============================================================
+               LƯU Ý: Đổi tên ".buy" và ".sell" bên dưới cho khớp với 
+               kết quả JSON bạn thấy trong Console log.
+               Ví dụ: Nếu JSON trả về { data: [{ buyPrice: 2800000, sellPrice: 2850000 }] }
+               Thì phải sửa thành: apiData.data[0].buyPrice
+            ================================================================ */
+            
+            let liveBuy = apiData?.data?.[0]?.buy || null; 
+            let liveSell = apiData?.data?.[0]?.sell || null; 
+
+            if (liveBuy && liveSell) {
+                // Đổ dữ liệu API vào ô input
+                document.getElementById('baseBuy').value = liveBuy.toLocaleString('vi-VN');
+                document.getElementById('baseSell').value = liveSell.toLocaleString('vi-VN');
+                
+                // Báo trạng thái thành công
+                statusEl.textContent = 'Trạng thái: API Live (Hoạt động)';
+                statusEl.className = 'api-status success';
+                
+                // Cập nhật lại giá toàn bảng
+                updateDashboard();
+            } else {
+                throw new Error('Không tìm thấy trường giá trị mong muốn trong JSON');
+            }
+
+        } catch (error) {
+            console.error("Lỗi khi kết nối API Phú Quý:", error);
+            statusEl.textContent = 'Trạng thái: Dùng giá Manual (Lỗi kết nối / CORS)';
+            statusEl.className = 'api-status error';
+            // Không làm gián đoạn hệ thống, người dùng vẫn có thể nhập tay bình thường.
+        }
+    }
+
+    // --- CHẠY LÚC VỪA MỞ TRANG ---
+    // 1. Dựng bảng ngay lập tức với giá trị thủ công mặc định ban đầu
+    updateDashboard(); 
+    // 2. Gọi API để kéo giá mới về đè lên (nếu thành công)
+    fetchLivePrice();
+
+</script>
+
+</body>
+</html>
