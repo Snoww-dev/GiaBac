@@ -270,6 +270,56 @@
         .premium-cell { color: #FBD38D; font-size: 13px; }
         .premium-zero { color: #4A5568; font-size: 12px; }
 
+        .premium-display {
+            color: #FBD38D;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            transition: all 0.18s;
+            white-space: nowrap;
+        }
+        .premium-display.is-zero {
+            color: #4A5568;
+        }
+        .premium-display:hover {
+            border-color: #63B3ED;
+            background: rgba(99, 179, 237, 0.08);
+            color: #63B3ED;
+        }
+        .premium-edit-btn {
+            background: none;
+            border: 1px solid #4A5568;
+            color: #A0AEC0;
+            border-radius: 4px;
+            padding: 3px 7px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .premium-edit-btn:hover {
+            border-color: #63B3ED;
+            color: #63B3ED;
+            background: rgba(99, 179, 237, 0.08);
+        }
+        .premium-input {
+            width: 110px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #63B3ED;
+            background: rgba(99, 179, 237, 0.1);
+            color: #63B3ED;
+            font-size: 13px;
+            outline: none;
+            font-weight: bold;
+        }
+        .premium-input:focus {
+            background: rgba(99, 179, 237, 0.16);
+            box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.25);
+        }
+
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: flex-start; margin-top: 30px; }
             td, th { padding: 8px; font-size: 12px; }
@@ -297,8 +347,8 @@
     </div>
 
     <div class="toolbar">
-        <span style="font-size:12px; color:#A0AEC0;">✏️ Bấm <strong style="color:#F6AD55;">Sửa</strong> ở cột Công thức để chỉnh hệ số quy đổi từng sản phẩm</span>
-        <button class="toolbar-btn" onclick="resetAllMultipliers()">↺ Khôi phục tất cả công thức gốc</button>
+        <span style="font-size:12px; color:#A0AEC0;">✏️ Bấm <strong style="color:#F6AD55;">Sửa</strong> ở cột Công thức hoặc <strong style="color:#63B3ED;">Phí Premium</strong> để chỉnh sửa từng sản phẩm</span>
+        <button class="toolbar-btn" onclick="resetAllMultipliers()">↺ Khôi phục tất cả về mặc định</button>
         <span class="toolbar-hint" id="modifiedCount"></span>
     </div>
 
@@ -346,9 +396,11 @@ const products = [
     { name: 'Đồng Bạc Dragon Colour III 2024 1 Oz',            unit: '1 Oz',     premium: 709650,  multiplier: 0.83 },
 ];
 
-// ── State: current multipliers (overridable per product) ─────────────────────
+// ── State: current multipliers + premiums (overridable per product) ──────────
 const defaultMultipliers = products.map(p => p.multiplier);
 const currentMultipliers = [...defaultMultipliers];
+const defaultPremiums    = products.map(p => p.premium);
+const currentPremiums    = [...defaultPremiums];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function parseNumber(str) {
@@ -372,32 +424,42 @@ function formatOnBlur(el) {
 
 // ── Render a single row ───────────────────────────────────────────────────────
 function renderRow(i, rawBuy, rawSell) {
-    const item     = products[i];
-    const mult     = currentMultipliers[i];
-    const isModified = mult !== defaultMultipliers[i];
+    const item      = products[i];
+    const mult      = currentMultipliers[i];
+    const prem      = currentPremiums[i];
+    const multMod   = mult !== defaultMultipliers[i];
+    const premMod   = prem !== defaultPremiums[i];
     const buyPrice  = rawBuy  * mult;
-    const sellPrice = (rawSell * mult) + item.premium;
+    const sellPrice = (rawSell * mult) + prem;
 
     const tbody = document.getElementById('product-table-body');
     const existingRow = tbody.querySelector(`tr[data-idx="${i}"]`);
     const row = existingRow || document.createElement('tr');
     row.dataset.idx = i;
 
-    // Formula cell content
     const formulaCell = `
         <div class="formula-cell" id="fcel-${i}">
             <span class="formula-display" onclick="startEdit(${i})" title="Bấm để chỉnh sửa hệ số">
-                × ${mult}${isModified ? '<span class="modified-dot" title="Đã chỉnh sửa"></span>' : ''}
+                × ${mult}${multMod ? '<span class="modified-dot" title="Đã chỉnh sửa"></span>' : ''}
             </span>
             <button class="edit-btn" onclick="startEdit(${i})">Sửa</button>
-            ${isModified ? `<button class="cancel-btn" onclick="resetOne(${i})" title="Khôi phục gốc">↺</button>` : ''}
+            ${multMod ? `<button class="cancel-btn" onclick="resetOne(${i})" title="Khôi phục gốc">↺</button>` : ''}
+        </div>`;
+
+    const premiumCell = `
+        <div class="formula-cell" id="pcel-${i}">
+            <span class="premium-display${prem === 0 && !premMod ? ' is-zero' : ''}" onclick="startPremiumEdit(${i})" title="Bấm để chỉnh sửa phí premium">
+                ${prem === 0 ? '—' : formatCurrency(prem)}${premMod ? '<span class="modified-dot" style="background:#63B3ED" title="Đã chỉnh sửa"></span>' : ''}
+            </span>
+            <button class="premium-edit-btn" onclick="startPremiumEdit(${i})">Sửa</button>
+            ${premMod ? `<button class="cancel-btn" onclick="resetOnePremium(${i})" title="Khôi phục gốc">↺</button>` : ''}
         </div>`;
 
     row.innerHTML = `
         <td class="product-name">${item.name}</td>
         <td class="unit">${item.unit}</td>
         <td>${formulaCell}</td>
-        <td class="${item.premium === 0 ? 'premium-zero' : 'premium-cell'}">${item.premium === 0 ? '—' : formatCurrency(item.premium)}</td>
+        <td>${premiumCell}</td>
         <td class="buy-price">${formatCurrency(buyPrice)}</td>
         <td class="sell-price">${formatCurrency(sellPrice)}</td>
     `;
@@ -468,8 +530,14 @@ function resetOne(i) {
     refreshRow(i);
 }
 
+function resetOnePremium(i) {
+    currentPremiums[i] = defaultPremiums[i];
+    refreshRow(i);
+}
+
 function resetAllMultipliers() {
     defaultMultipliers.forEach((v, i) => { currentMultipliers[i] = v; });
+    defaultPremiums.forEach((v, i)    => { currentPremiums[i]    = v; });
     updateDashboard();
 }
 
@@ -483,21 +551,20 @@ function refreshRow(i) {
     const oldRow = tbody.querySelector(`tr[data-idx="${i}"]`);
     if (oldRow) oldRow.remove();
 
-    // Re-insert at correct position
     const allRows = [...tbody.querySelectorAll('tr[data-idx]')];
     const nextRow = allRows.find(r => parseInt(r.dataset.idx) > i);
-
-    const newRow = document.createElement('tr');
+    const newRow  = document.createElement('tr');
     newRow.dataset.idx = i;
     if (nextRow) tbody.insertBefore(newRow, nextRow);
     else tbody.appendChild(newRow);
 
-    // Assign html to the new row
-    const mult     = currentMultipliers[i];
-    const item     = products[i];
-    const isModified = mult !== defaultMultipliers[i];
+    const mult    = currentMultipliers[i];
+    const prem    = currentPremiums[i];
+    const item    = products[i];
+    const multMod = mult !== defaultMultipliers[i];
+    const premMod = prem !== defaultPremiums[i];
     const buyPrice  = rawBuy  * mult;
-    const sellPrice = (rawSell * mult) + item.premium;
+    const sellPrice = (rawSell * mult) + prem;
 
     newRow.innerHTML = `
         <td class="product-name">${item.name}</td>
@@ -505,23 +572,78 @@ function refreshRow(i) {
         <td>
             <div class="formula-cell" id="fcel-${i}">
                 <span class="formula-display" onclick="startEdit(${i})" title="Bấm để chỉnh sửa hệ số">
-                    × ${mult}${isModified ? '<span class="modified-dot" title="Đã chỉnh sửa"></span>' : ''}
+                    × ${mult}${multMod ? '<span class="modified-dot" title="Đã chỉnh sửa"></span>' : ''}
                 </span>
                 <button class="edit-btn" onclick="startEdit(${i})">Sửa</button>
-                ${isModified ? `<button class="cancel-btn" onclick="resetOne(${i})" title="Khôi phục gốc">↺</button>` : ''}
+                ${multMod ? `<button class="cancel-btn" onclick="resetOne(${i})" title="Khôi phục gốc">↺</button>` : ''}
             </div>
         </td>
-        <td class="${item.premium === 0 ? 'premium-zero' : 'premium-cell'}">${item.premium === 0 ? '—' : formatCurrency(item.premium)}</td>
+        <td>
+            <div class="formula-cell" id="pcel-${i}">
+                <span class="premium-display${prem === 0 && !premMod ? ' is-zero' : ''}" onclick="startPremiumEdit(${i})" title="Bấm để chỉnh sửa phí premium">
+                    ${prem === 0 ? '—' : formatCurrency(prem)}${premMod ? '<span class="modified-dot" style="background:#63B3ED" title="Đã chỉnh sửa"></span>' : ''}
+                </span>
+                <button class="premium-edit-btn" onclick="startPremiumEdit(${i})">Sửa</button>
+                ${premMod ? `<button class="cancel-btn" onclick="resetOnePremium(${i})" title="Khôi phục gốc">↺</button>` : ''}
+            </div>
+        </td>
         <td class="buy-price">${formatCurrency(buyPrice)}</td>
         <td class="sell-price">${formatCurrency(sellPrice)}</td>
     `;
     updateModifiedCount();
 }
 
+// ── Premium inline edit ───────────────────────────────────────────────────────
+function startPremiumEdit(i) {
+    const pcel = document.getElementById(`pcel-${i}`);
+    const currentVal = currentPremiums[i];
+
+    pcel.innerHTML = `
+        <div class="formula-input-wrap">
+            <input class="premium-input" id="pinput-${i}" type="number" step="1"
+                   value="${currentVal}" min="0" placeholder="0"
+                   onkeydown="handlePremiumKey(event, ${i})"
+                   autofocus>
+            <span style="color:#63B3ED; font-size:11px;">đ</span>
+            <button class="confirm-btn" onclick="confirmPremiumEdit(${i})" title="Xác nhận (Enter)">✓</button>
+            <button class="cancel-btn"  onclick="cancelEdit(${i})"  title="Hủy (Esc)">✕</button>
+        </div>`;
+
+    const input = document.getElementById(`pinput-${i}`);
+    input.focus();
+    input.select();
+}
+
+function handlePremiumKey(e, i) {
+    if (e.key === 'Enter')  { e.preventDefault(); confirmPremiumEdit(i); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelEdit(i); }
+}
+
+function confirmPremiumEdit(i) {
+    const input = document.getElementById(`pinput-${i}`);
+    const newVal = parseFloat(input.value);
+
+    if (isNaN(newVal) || newVal < 0) {
+        input.style.borderColor = '#E53E3E';
+        input.title = 'Phí phải là số không âm';
+        input.focus();
+        return;
+    }
+
+    currentPremiums[i] = Math.round(newVal);
+    refreshRow(i);
+}
+
 function updateModifiedCount() {
-    const count = currentMultipliers.filter((v, i) => v !== defaultMultipliers[i]).length;
+    const multCount = currentMultipliers.filter((v, i) => v !== defaultMultipliers[i]).length;
+    const premCount = currentPremiums.filter((v, i)    => v !== defaultPremiums[i]).length;
+    const total = multCount + premCount;
     const el = document.getElementById('modifiedCount');
-    el.textContent = count > 0 ? `🟡 ${count} công thức đã chỉnh sửa` : '';
+    if (total === 0) { el.textContent = ''; return; }
+    const parts = [];
+    if (multCount > 0) parts.push(`${multCount} công thức`);
+    if (premCount > 0) parts.push(`${premCount} phí premium`);
+    el.textContent = `🟡 Đã chỉnh sửa: ${parts.join(' · ')}`;
 }
 
 // ── Live API ─────────────────────────────────────────────────────────────────
