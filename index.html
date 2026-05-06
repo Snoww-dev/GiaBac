@@ -24,7 +24,6 @@
             position: relative;
         }
 
-        /* Thêm badge trạng thái kết nối API */
         .api-status {
             position: absolute;
             top: 20px;
@@ -73,7 +72,7 @@
             font-weight: bold;
         }
 
-        .input-group input {
+        .input-group input[type="text"] {
             padding: 8px 12px;
             border-radius: 4px;
             border: 1px solid #D4AF37;
@@ -85,7 +84,7 @@
             font-weight: bold;
         }
 
-        .input-group input:focus {
+        .input-group input[type="text"]:focus {
             background: rgba(255, 255, 255, 0.1);
         }
 
@@ -126,10 +125,37 @@
         .buy-price { color: #63B3ED; }
         .sell-price { font-weight: bold; color: #fff; }
 
+        /* CSS mới cho ô nhập hệ số quy đổi */
+        .multiplier-input {
+            width: 70px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #F6AD55;
+            background: rgba(255, 255, 255, 0.05);
+            color: #F6AD55;
+            outline: none;
+            font-size: 13px;
+            font-style: italic;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .multiplier-input:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #fff;
+        }
+
+        .formula-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: flex-start; margin-top: 30px;}
             td, th { padding: 8px; font-size: 12px; }
-            .input-group input { width: 100%; }
+            .input-group input[type="text"] { width: 100%; }
+            .multiplier-input { width: 50px; }
         }
     </style>
 </head>
@@ -233,6 +259,18 @@
         }
     }
 
+    // --- HÀM MỚI: Xử lý khi sửa công thức quy đổi ---
+    function updateMultiplier(index, newValue) {
+        let val = parseFloat(newValue);
+        if (!isNaN(val) && val >= 0) {
+            products[index].multiplier = val;
+            updateDashboard(); // Gọi lại hàm update để vẽ lại bảng và tính lại giá
+        } else {
+            // Nếu người dùng nhập sai (chữ, để trống), khôi phục lại hiển thị cũ
+            updateDashboard();
+        }
+    }
+
     function updateDashboard() {
         let rawBuy = parseNumber(document.getElementById('baseBuy').value);
         if (rawBuy > 0 && rawBuy < 100000) rawBuy *= 1000;
@@ -243,7 +281,8 @@
         const tbody = document.getElementById('product-table-body');
         tbody.innerHTML = ''; 
 
-        products.forEach(item => {
+        // Thêm tham số index vào vòng lặp để biết đang sửa sản phẩm nào
+        products.forEach((item, index) => {
             const buyPrice = rawBuy * item.multiplier;
             const sellPrice = (rawSell * item.multiplier) + item.premium;
 
@@ -251,7 +290,14 @@
                 <tr>
                     <td class="product-name">${item.name}</td>
                     <td class="unit">${item.unit}</td>
-                    <td class="formula-col">× ${item.multiplier}</td>
+                    <td class="formula-col">
+                        <div class="formula-wrapper">
+                            <span>×</span>
+                            <input type="number" step="0.0001" class="multiplier-input" 
+                                   value="${item.multiplier}" 
+                                   onchange="updateMultiplier(${index}, this.value)">
+                        </div>
+                    </td>
                     <td>${item.premium === 0 ? '0 đ' : formatCurrency(item.premium)}</td>
                     <td class="buy-price">${formatCurrency(buyPrice)}</td>
                     <td class="sell-price">${formatCurrency(sellPrice)}</td>
@@ -261,7 +307,6 @@
         });
     }
 
-    // --- HÀM TỰ ĐỘNG GỌI API ---
     async function fetchLivePrice() {
         const statusEl = document.getElementById('apiStatus');
         try {
@@ -270,28 +315,18 @@
             if (!response.ok) throw new Error('API không phản hồi thành công');
             
             const apiData = await response.json();
-            console.log("Dữ liệu API trả về:", apiData); // BẤM F12 XEM DÒNG NÀY ĐỂ ĐIỀU CHỈNH KEY BÊN DƯỚI
-
-            /* ==============================================================
-               LƯU Ý: Đổi tên ".buy" và ".sell" bên dưới cho khớp với 
-               kết quả JSON bạn thấy trong Console log.
-               Ví dụ: Nếu JSON trả về { data: [{ buyPrice: 2800000, sellPrice: 2850000 }] }
-               Thì phải sửa thành: apiData.data[0].buyPrice
-            ================================================================ */
+            console.log("Dữ liệu API trả về:", apiData); 
             
             let liveBuy = apiData?.data?.[0]?.buy || null; 
             let liveSell = apiData?.data?.[0]?.sell || null; 
 
             if (liveBuy && liveSell) {
-                // Đổ dữ liệu API vào ô input
                 document.getElementById('baseBuy').value = liveBuy.toLocaleString('vi-VN');
                 document.getElementById('baseSell').value = liveSell.toLocaleString('vi-VN');
                 
-                // Báo trạng thái thành công
                 statusEl.textContent = 'Trạng thái: API Live (Hoạt động)';
                 statusEl.className = 'api-status success';
                 
-                // Cập nhật lại giá toàn bảng
                 updateDashboard();
             } else {
                 throw new Error('Không tìm thấy trường giá trị mong muốn trong JSON');
@@ -301,14 +336,10 @@
             console.error("Lỗi khi kết nối API Phú Quý:", error);
             statusEl.textContent = 'Trạng thái: Dùng giá Manual (Lỗi kết nối / CORS)';
             statusEl.className = 'api-status error';
-            // Không làm gián đoạn hệ thống, người dùng vẫn có thể nhập tay bình thường.
         }
     }
 
-    // --- CHẠY LÚC VỪA MỞ TRANG ---
-    // 1. Dựng bảng ngay lập tức với giá trị thủ công mặc định ban đầu
     updateDashboard(); 
-    // 2. Gọi API để kéo giá mới về đè lên (nếu thành công)
     fetchLivePrice();
 
 </script>
